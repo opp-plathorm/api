@@ -1,24 +1,20 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
-from kafka import KafkaProducer
-import json
-
+import model_messege as mm
+from config_kafka import producer, consumer
+import threading
 app = FastAPI()
 
-# Создание экземпляра KafkaProducer
-producer = KafkaProducer(
-    bootstrap_servers='kafka:9092',  # адрес вашего Kafka брокера
-    api_version = (0,10,2),
-    value_serializer=lambda v: json.dumps(v).encode('utf-8')  # сериализация сообщений в JSON
-)
+auth_results = {}
 
-# Модель данных для входящих сообщений
-class Message(BaseModel):
-    key: str
-    value: str
+def consume_auth_results():
+    for message in consumer:
+        # Сохраняем результат авторизации в глобальную переменную
+        auth_results[message.value['username']] = message.value['success']
+        
+threading.Thread(target=consume_auth_results, daemon=True).start()
 
 @app.post("/send/")
-async def send_message(message: Message):
+async def send_message(message: mm.Message):
     try:
         producer.send('my_topic', value=message.dict())
         producer.flush()  # Убедитесь, что все сообщения отправлены
@@ -26,6 +22,25 @@ async def send_message(message: Message):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@app.post("/api/login")
+async def login(auth_request: mm.Login):
+    username = auth_request.username
+    password = auth_request.password
+
+    # Отправка данных в Kafka для обработки
+    producer.send("auth-topic", {'username': username, 'password': password})
+    producer.flush()
+
+    # Ожидание результата авторизации
+    while username not in auth_results:
+        pass  # Блокируем поток до получения результата
+
+    # Получаем результат авторизации
+    success = auth_results[username]
+    message = 'Авторизация успешна.' if success else 'Неверное имя пользователя или пароль.'
+
+    return {"message": message}
+    
 @app.on_event("shutdown")
 def shutdown_event():
     producer.close()  # Закрытие продюсера при завершении приложения
