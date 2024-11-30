@@ -13,15 +13,6 @@ def consume_auth_results():
         
 threading.Thread(target=consume_auth_results, daemon=True).start()
 
-@app.post("/send/")
-async def send_message(message: mm.Message):
-    try:
-        producer.send('my_topic', value=message.dict())
-        producer.flush()  # Убедитесь, что все сообщения отправлены
-        return {"status": "success", "message": f"Сообщение отправлено: {message}"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
 @app.post("/api/login")
 async def login(auth_request: mm.Login):
     username = auth_request.username
@@ -33,9 +24,8 @@ async def login(auth_request: mm.Login):
 
     # Ожидание результата авторизации
     while username not in auth_results:
-        pass  # Блокируем поток до получения результата
+        pass
 
-    # Получаем результат авторизации
     success = auth_results[username]
     message = 'Авторизация успешна.' if success else 'Неверное имя пользователя или пароль.'
 
