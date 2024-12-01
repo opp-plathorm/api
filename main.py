@@ -9,26 +9,31 @@ auth_results = {}
 def consume_auth_results():
     for message in consumer:
         # Сохраняем результат авторизации в глобальную переменную
-        auth_results[message.value['username']] = message.value['success']
+        print("5")
+        auth_results[message.value['login']] = message.value['success']
         
 threading.Thread(target=consume_auth_results, daemon=True).start()
 
 @app.post("/api/login")
 async def login(auth_request: mm.Login):
-    username = auth_request.username
+    print("1")
+    login = auth_request.login
     password = auth_request.password
-
+    print("2")
     # Отправка данных в Kafka для обработки
-    producer.send("auth-topic", {'username': username, 'password': password})
+    producer.send("auth-topic", {'login': login, 'password': password})
+    print("3")
     producer.flush()
-
+    print("4")
     # Ожидание результата авторизации
-    while username not in auth_results:
+    while login not in auth_results:
+        
         pass
-
-    success = auth_results[username]
+    print("6")
+    success = auth_results[login]
+    print("7")
     message = 'Авторизация успешна.' if success else 'Неверное имя пользователя или пароль.'
-
+    print("8")
     return {"message": message}
     
 @app.on_event("shutdown")
